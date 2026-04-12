@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# NEVER commit secrets
+.env
+.env.local
+.env.*.local
+
+# AlgoKit / Algorand
+.algokit/sources/
+projects/algo_hack/smart_contracts/artifacts/
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# Poetry
+poetry.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Logs
+*.log
+logs/
