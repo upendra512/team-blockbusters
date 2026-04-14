@@ -1,57 +1,99 @@
 """
-Weather Service — OpenWeatherMap API for route weather conditions.
-Used by seller agents to assess ETA risk and by the buyer agent for route analysis.
+Weather Service — Open-Meteo API (completely free, no API key required).
+Geocodes city to lat/lon via Nominatim, then fetches current weather.
 """
 import httpx
-from backend.config import settings
 
-OWM_URL = "https://api.openweathermap.org/data/2.5/weather"
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+HEADERS = {"User-Agent": "A2A-Freight-Demo/1.0"}
+
+
+async def _get_coords(city: str, state: str) -> tuple[float, float] | None:
+    """Get lat/lon for a city using Nominatim (free, no key)."""
+    try:
+        async with httpx.AsyncClient(timeout=6, headers=HEADERS) as client:
+            resp = await client.get(
+                NOMINATIM_URL,
+                params={"q": f"{city}, {state}, India", "format": "json", "limit": 1},
+            )
+            results = resp.json()
+            if results:
+                return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
+        pass
+    return None
 
 
 async def get_weather(city: str, state: str) -> dict:
     """
-    Returns weather dict with description, temp, wind, and an ETA risk flag.
-    Falls back gracefully if API key missing or unavailable.
+    Returns live weather using Open-Meteo (no API key needed).
+    Falls back gracefully if unavailable.
     """
-    if not settings.openweathermap_api_key:
+    coords = await _get_coords(city, state)
+    if not coords:
         return _fallback_weather(city)
 
-    query = f"{city},{state},IN"
+    lat, lon = coords
     try:
         async with httpx.AsyncClient(timeout=6) as client:
             resp = await client.get(
-                OWM_URL,
+                OPEN_METEO_URL,
                 params={
-                    "q": query,
-                    "appid": settings.openweathermap_api_key,
-                    "units": "metric",
+                    "latitude": lat,
+                    "longitude": lon,
+                    "current": "temperature_2m,wind_speed_10m,precipitation,weather_code",
+                    "wind_speed_unit": "kmh",
                 },
             )
             data = resp.json()
-            if resp.status_code == 200:
-                weather_main = data["weather"][0]["main"]
-                description = data["weather"][0]["description"]
-                temp = data["main"]["temp"]
-                wind_speed = data["wind"]["speed"]
-                rain_mm = data.get("rain", {}).get("1h", 0)
+            current = data.get("current", {})
 
-                # Assess ETA risk
-                high_risk = weather_main in ("Thunderstorm", "Tornado") or rain_mm > 10
-                medium_risk = weather_main in ("Rain", "Snow", "Drizzle") or wind_speed > 15
+            temp = current.get("temperature_2m", 30.0)
+            wind_kmh = current.get("wind_speed_10m", 10.0)
+            rain_mm = current.get("precipitation", 0.0)
+            wmo_code = current.get("weather_code", 0)
 
-                return {
-                    "description": description,
-                    "temperature_c": temp,
-                    "wind_kmh": round(wind_speed * 3.6, 1),
-                    "rain_mm": rain_mm,
-                    "eta_risk": "HIGH" if high_risk else ("MEDIUM" if medium_risk else "LOW"),
-                    "city": city,
-                    "live": True,
-                }
+            description = _wmo_to_description(wmo_code)
+            high_risk = wmo_code >= 80 or rain_mm > 10
+            medium_risk = wmo_code >= 51 or wind_kmh > 50
+
+            return {
+                "description": description,
+                "temperature_c": temp,
+                "wind_kmh": round(wind_kmh, 1),
+                "rain_mm": rain_mm,
+                "eta_risk": "HIGH" if high_risk else ("MEDIUM" if medium_risk else "LOW"),
+                "city": city,
+                "live": True,
+            }
     except Exception:
         pass
 
     return _fallback_weather(city)
+
+
+def _wmo_to_description(code: int) -> str:
+    """Convert WMO weather code to human-readable string."""
+    if code == 0:
+        return "clear sky"
+    elif code <= 3:
+        return "partly cloudy"
+    elif code <= 48:
+        return "foggy"
+    elif code <= 57:
+        return "drizzle"
+    elif code <= 67:
+        return "rain"
+    elif code <= 77:
+        return "snow"
+    elif code <= 82:
+        return "rain showers"
+    elif code <= 86:
+        return "snow showers"
+    elif code <= 99:
+        return "thunderstorm"
+    return "unknown"
 
 
 def _fallback_weather(city: str) -> dict:

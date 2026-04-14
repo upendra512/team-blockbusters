@@ -7,7 +7,7 @@ Makes pricing decisions using live market data:
 - Uses Gemini to generate natural negotiation messages
 - Accepts when gap ≤ 8% or max 5 rounds
 """
-import google.generativeai as genai
+from groq import AsyncGroq
 
 from backend.config import settings
 from backend.models import CarrierQuote, ShipmentIntent, LiveMarketData
@@ -57,7 +57,7 @@ async def generate_negotiation_message(
     accepting: bool,
 ) -> str:
     """Generate a natural buyer negotiation message using Gemini."""
-    genai.configure(api_key=settings.gemini_api_key)
+    client = AsyncGroq(api_key=settings.groq_api_key)
 
     system = f"""You are a buyer agent for a logistics company negotiating a freight deal.
 You represent a shipper trying to get the best rate for their cargo.
@@ -78,10 +78,16 @@ Return ONLY the message text, no JSON.
 """
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-        prompt = "Generate the buyer's next negotiation message."
-        response = await model.generate_content_async(prompt)
-        return response.text.strip()
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": "Generate the buyer's next negotiation message."},
+            ],
+            temperature=0.7,
+            max_tokens=128,
+        )
+        return response.choices[0].message.content.strip()
     except Exception:
         if accepting:
             return f"Deal agreed at ₹{seller_counter:.0f}. Ready to proceed with escrow lock."

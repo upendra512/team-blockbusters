@@ -12,10 +12,11 @@ class Settings(BaseSettings):
 
     # LLM
     gemini_api_key: str = ""
+    groq_api_key: str = ""
 
     # External APIs
     openrouteservice_api_key: str = ""
-    openweathermap_api_key: str = ""
+    # openweathermap replaced by Open-Meteo (free, no key needed)
 
     class Config:
         env_file = ".env"

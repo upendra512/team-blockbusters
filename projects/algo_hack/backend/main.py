@@ -67,8 +67,8 @@ async def health():
 @app.post("/api/chat/message", response_model=ChatResponse)
 async def chat_message(req: ChatRequest):
     """Process one user message via the intent agent."""
-    if not settings.gemini_api_key:
-        raise HTTPException(503, "GEMINI_API_KEY not configured")
+    if not settings.groq_api_key:
+        raise HTTPException(503, "GROQ_API_KEY not configured")
 
     reply, is_complete, intent = await intent_agent.process_message(
         req.session_id, req.message

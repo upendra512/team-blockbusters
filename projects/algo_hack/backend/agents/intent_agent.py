@@ -8,7 +8,7 @@ import json
 import re
 from typing import Optional
 
-import google.generativeai as genai
+from groq import AsyncGroq
 
 from backend.config import settings
 from backend.models import ShipmentIntent
@@ -64,23 +64,27 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
     Process one user message.
     Returns (reply_text, is_complete, shipment_intent_or_None).
     """
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
+    client = AsyncGroq(api_key=settings.groq_api_key)
 
     session = _get_or_create_session(session_id)
 
     if session["complete"]:
         return "All shipment details are already collected. Click 'Find Quotes' to proceed!", True, _build_intent(session["collected"])
 
-    # Build conversation history for Gemini
-    history = [
-        {"role": h["role"], "parts": [h["content"]]}
-        for h in session["history"]
-    ]
+    # Build conversation history for Groq
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for h in session["history"]:
+        role = "assistant" if h["role"] == "model" else h["role"]
+        messages.append({"role": role, "content": h["content"]})
+    messages.append({"role": "user", "content": user_message})
 
-    chat = model.start_chat(history=history)
-    response = await chat.send_message_async(user_message)
-    reply = response.text
+    response = await client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=1024,
+    )
+    reply = response.choices[0].message.content
 
     # Update history
     session["history"].append({"role": "user", "content": user_message})
@@ -99,6 +103,9 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
                 session["complete"] = True
                 is_complete = True
                 intent = _build_intent(parsed["data"])
+                # Strip the raw JSON block from the displayed reply
+                clean_reply = re.sub(r"```json\s*\{.*?\}\s*```", "", reply, flags=re.DOTALL).strip()
+                reply = clean_reply + "\n\n✅ All details collected! Click **Start Negotiation** to find the best carrier rates."
         except (json.JSONDecodeError, KeyError):
             pass
 

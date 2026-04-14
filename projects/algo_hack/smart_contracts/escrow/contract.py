@@ -1,6 +1,5 @@
 from algopy import (
     ARC4Contract,
-    Account,
     Global,
     GlobalState,
     String,
@@ -20,18 +19,19 @@ class CommerceEscrow(ARC4Contract):
     winning carrier agent after a verified delivery receipt is submitted.
 
     Status codes:
-        1 = LOCKED    – funds locked, awaiting delivery
-        2 = DELIVERED – receipt hash submitted, awaiting release
-        3 = SETTLED   – payment released to carrier
-        4 = REFUNDED  – buyer refunded after failed/missing delivery
+        1 = LOCKED    - funds locked, awaiting delivery
+        2 = DELIVERED - receipt hash submitted, awaiting release
+        3 = SETTLED   - payment released to carrier
+        4 = REFUNDED  - buyer refunded after failed/missing delivery
     """
 
-    buyer: GlobalState[Account]
-    seller: GlobalState[Account]
-    amount: GlobalState[UInt64]
-    service_hash: GlobalState[String]   # SHA-256 of shipment requirements JSON
-    delivery_hash: GlobalState[String]  # SHA-256 of delivery receipt JSON
-    status: GlobalState[UInt64]
+    def __init__(self) -> None:
+        self.buyer = GlobalState(arc4.Address, description="buyer address")
+        self.seller = GlobalState(arc4.Address, description="seller address")
+        self.amount = GlobalState(UInt64, description="locked microALGO")
+        self.service_hash = GlobalState(String, description="SHA256 of service requirements")
+        self.delivery_hash = GlobalState(String, description="SHA256 of delivery receipt")
+        self.status = GlobalState(UInt64, description="deal status code")
 
     @arc4.abimethod
     def create_deal(
@@ -43,7 +43,7 @@ class CommerceEscrow(ARC4Contract):
         """
         Buyer locks ALGO for freight service.
         Must be submitted as an atomic group:
-            [PaymentTxn → app_address, AppCallTxn → create_deal]
+            [PaymentTxn to app_address, AppCallTxn to create_deal]
         """
         assert (
             payment.receiver == Global.current_application_address
@@ -51,8 +51,8 @@ class CommerceEscrow(ARC4Contract):
         assert payment.amount > UInt64(0), "Amount must be positive"
         assert Txn.sender != seller.native, "Buyer and seller must differ"
 
-        self.buyer.value = Txn.sender
-        self.seller.value = seller.native
+        self.buyer.value = arc4.Address(Txn.sender)
+        self.seller.value = seller.copy()
         self.amount.value = payment.amount
         self.service_hash.value = service_hash.native
         self.status.value = UInt64(1)  # LOCKED
@@ -65,7 +65,7 @@ class CommerceEscrow(ARC4Contract):
         Carrier submits SHA-256 hash of the delivery receipt JSON.
         Only the registered seller may call this.
         """
-        assert Txn.sender == self.seller.value, "Only seller can submit delivery"
+        assert arc4.Address(Txn.sender) == self.seller.value, "Only seller can submit delivery"
         assert self.status.value == UInt64(1), "Deal must be in LOCKED state"
 
         self.delivery_hash.value = delivery_hash.native
@@ -77,11 +77,11 @@ class CommerceEscrow(ARC4Contract):
         Buyer triggers payment release to carrier after AI verification passes.
         Inner transaction sends the locked ALGO to the seller.
         """
-        assert Txn.sender == self.buyer.value, "Only buyer can release payment"
+        assert arc4.Address(Txn.sender) == self.buyer.value, "Only buyer can release payment"
         assert self.status.value == UInt64(2), "Delivery must be submitted first"
 
         itxn.Payment(
-            receiver=self.seller.value,
+            receiver=self.seller.value.native,
             amount=self.amount.value,
             fee=Global.min_txn_fee,
         ).submit()
@@ -94,11 +94,11 @@ class CommerceEscrow(ARC4Contract):
         Buyer reclaims ALGO if delivery is not submitted or fails verification.
         Can only be called when status is LOCKED (1).
         """
-        assert Txn.sender == self.buyer.value, "Only buyer can claim refund"
+        assert arc4.Address(Txn.sender) == self.buyer.value, "Only buyer can claim refund"
         assert self.status.value == UInt64(1), "Deal must be in LOCKED state"
 
         itxn.Payment(
-            receiver=self.buyer.value,
+            receiver=self.buyer.value.native,
             amount=self.amount.value,
             fee=Global.min_txn_fee,
         ).submit()

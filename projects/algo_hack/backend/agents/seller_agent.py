@@ -10,7 +10,7 @@ Each carrier has a profile. Quotes are computed dynamically from:
 Negotiation responses are LLM-generated but constrained by the carrier's
 minimum acceptable price (never revealed to the buyer).
 """
-import google.generativeai as genai
+from groq import AsyncGroq
 
 from backend.config import settings
 from backend.models import CarrierQuote, ShipmentIntent, LiveMarketData
@@ -106,7 +106,7 @@ async def generate_negotiation_response(
     Generate carrier's negotiation response using Gemini LLM.
     Returns {"message": str, "counter_price": float, "accept": bool}
     """
-    genai.configure(api_key=settings.gemini_api_key)
+    client = AsyncGroq(api_key=settings.groq_api_key)
     carrier = _get_carrier(carrier_id)
     min_price = get_min_price(carrier_id, initial_quote)
 
@@ -140,10 +140,17 @@ Respond with ONLY valid JSON (no markdown):
     prompt = f"Negotiation history:\n{history_text}\n\nBuyer's latest offer: ₹{buyer_offer:.0f}\n\nYour response:"
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=system)
-        response = await model.generate_content_async(prompt)
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.6,
+            max_tokens=256,
+        )
         import json, re
-        text = response.text.strip()
+        text = response.choices[0].message.content.strip()
         # Strip markdown code fences if present
         text = re.sub(r"```json?\s*|\s*```", "", text).strip()
         parsed = json.loads(text)
