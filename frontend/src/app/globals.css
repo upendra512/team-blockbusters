@@ -4,23 +4,67 @@
 
 @layer base {
   * { box-sizing: border-box; }
-
-  html { -webkit-font-smoothing: antialiased; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
   body {
-    background-color: #09090b; /* zinc-950 */
-    color: #f4f4f5;            /* zinc-100 */
-    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background-color: #f8f9ff;
+    color: #0b1c30;
+    font-family: "Inter", system-ui, sans-serif;
+    overflow: hidden;
   }
+
+  /* Material Symbols icon sizing */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: -0.125em;
+    line-height: 1;
+  }
+  .icon-sm .material-symbols-outlined,
+  .material-symbols-outlined.text-sm { font-size: 18px; }
+  .icon-xs .material-symbols-outlined,
+  .material-symbols-outlined.text-xs { font-size: 14px; }
 }
 
-/* Subtle scrollbar */
-.scrollbar-thin::-webkit-scrollbar        { width: 3px; }
+/* Scrollbar */
+.scrollbar-thin::-webkit-scrollbar        { width: 3px; height: 3px; }
 .scrollbar-thin::-webkit-scrollbar-track  { background: transparent; }
-.scrollbar-thin::-webkit-scrollbar-thumb  { background: #3f3f46; border-radius: 99px; }
+.scrollbar-thin::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 99px; }
 
-/* Gradient dividers */
-.divider-glow {
-  background: linear-gradient(90deg, transparent, #27272a 40%, #27272a 60%, transparent);
-  height: 1px;
+/* Pulse animation for live indicators */
+.pulse-dot { position: relative; }
+.pulse-dot::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: #4edf9f;
+  opacity: 0.6;
+  animation: pulse-ring 2s infinite;
 }
+@keyframes pulse-ring {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* Glass effect */
+.glass {
+  backdrop-filter: blur(16px);
+  background-color: rgba(255,255,255,0.85);
+}
+
+/* Bento card base */
+.bento {
+  @apply bg-surface-container-lowest rounded-2xl shadow-card border border-slate-100/60;
+}
+
+/* Typing dots */
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%            { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot { animation: typing-dot 1.4s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Step rail connector */
+.step-connector { @apply flex-1 h-0.5 bg-slate-200 mx-2 mt-[-14px]; }
+.step-connector.done { @apply bg-primary; }
