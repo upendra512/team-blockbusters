@@ -2,12 +2,14 @@ from algopy import (
     ARC4Contract,
     Global,
     GlobalState,
+    OnCompleteAction,
     String,
     Txn,
     UInt64,
     arc4,
     gtxn,
     itxn,
+    op,
 )
 
 
@@ -24,6 +26,13 @@ class CommerceEscrow(ARC4Contract):
         3 = SETTLED   - payment released to carrier
         4 = REFUNDED  - buyer refunded after failed/missing delivery
     """
+
+    @arc4.baremethod(allow_actions=["DeleteApplication"])
+    def delete(self) -> None:
+        """Allow buyer to delete app after settlement/refund to recover min-balance."""
+        assert Txn.sender == self.buyer.value.native, "Only buyer can delete"
+        status = self.status.value
+        assert status == UInt64(3) or status == UInt64(4), "Can only delete after SETTLED or REFUNDED"
 
     def __init__(self) -> None:
         self.buyer = GlobalState(arc4.Address, description="buyer address")

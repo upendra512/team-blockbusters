@@ -1,0 +1,391 @@
+#pragma version 11
+#pragma typetrack false
+
+// algopy.arc4.ARC4Contract.approval_program() -> uint64:
+main:
+    intcblock 0 1 2 3
+    bytecblock "status" "buyer" "amount" "seller" 0x151f7c75
+    pushbytes ""
+    // smart_contracts/escrow/contract.py:16
+    // class CommerceEscrow(ARC4Contract):
+    txn NumAppArgs
+    bz main_bare_routing@15
+    txn OnCompletion
+    !
+    assert
+    txn ApplicationID
+    assert
+    pushbytess 0xcb87a8bd 0xe9966937 0xace12c19 0xe0340cd1 0x29a2dd5a 0x59fb0c57 // method "create_deal(address,string,pay)uint64", method "submit_delivery(string)void", method "release_payment()void", method "refund_buyer()void", method "get_status()uint64", method "get_amount()uint64"
+    txna ApplicationArgs 0
+    match create_deal submit_delivery release_payment refund_buyer get_status get_amount
+    err
+
+main_bare_routing@15:
+    // smart_contracts/escrow/contract.py:16
+    // class CommerceEscrow(ARC4Contract):
+    intc_0 // NoOp
+    pushint 5 // DeleteApplication
+    txn OnCompletion
+    match main___algopy_default_create@16 main_delete@17
+    err
+
+main_delete@17:
+    // smart_contracts/escrow/contract.py:30
+    // @arc4.baremethod(allow_actions=["DeleteApplication"])
+    txn ApplicationID
+    assert
+    // smart_contracts/escrow/contract.py:33
+    // assert Txn.sender == self.buyer.value.native, "Only buyer can delete"
+    txn Sender
+    intc_0 // 0
+    bytec_1 // "buyer"
+    app_global_get_ex
+    assert // check self.buyer exists
+    ==
+    assert // Only buyer can delete
+    // smart_contracts/escrow/contract.py:34
+    // status = self.status.value
+    intc_0 // 0
+    bytec_0 // "status"
+    app_global_get_ex
+    swap
+    dup
+    cover 2
+    bury 3
+    assert // check self.status exists
+    // smart_contracts/escrow/contract.py:35
+    // assert status == UInt64(3) or status == UInt64(4), "Can only delete after SETTLED or REFUNDED"
+    intc_3 // 3
+    ==
+    bnz main_bool_true@22
+    dup
+    pushint 4
+    ==
+    bz main_bool_false@23
+
+main_bool_true@22:
+    intc_1 // 1
+
+main_bool_merge@24:
+    // smart_contracts/escrow/contract.py:35
+    // assert status == UInt64(3) or status == UInt64(4), "Can only delete after SETTLED or REFUNDED"
+    assert // Can only delete after SETTLED or REFUNDED
+    // smart_contracts/escrow/contract.py:30
+    // @arc4.baremethod(allow_actions=["DeleteApplication"])
+    intc_1 // 1
+    return
+
+main_bool_false@23:
+    intc_0 // 0
+    b main_bool_merge@24
+
+main___algopy_default_create@16:
+    txn ApplicationID
+    !
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.create_deal[routing]() -> void:
+create_deal:
+    // smart_contracts/escrow/contract.py:45
+    // @arc4.abimethod
+    txna ApplicationArgs 1
+    dup
+    len
+    pushint 32
+    ==
+    assert // invalid number of bytes for arc4.static_array<arc4.uint8, 32>
+    txna ApplicationArgs 2
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    txn GroupIndex
+    intc_1 // 1
+    -
+    dup
+    gtxns TypeEnum
+    intc_1 // pay
+    ==
+    assert // transaction type is pay
+    // smart_contracts/escrow/contract.py:58
+    // payment.receiver == Global.current_application_address
+    dup
+    gtxns Receiver
+    global CurrentApplicationAddress
+    ==
+    // smart_contracts/escrow/contract.py:57-59
+    // assert (
+    //     payment.receiver == Global.current_application_address
+    // ), "Payment must go to this contract"
+    assert // Payment must go to this contract
+    // smart_contracts/escrow/contract.py:60
+    // assert payment.amount > UInt64(0), "Amount must be positive"
+    gtxns Amount
+    dup
+    assert // Amount must be positive
+    // smart_contracts/escrow/contract.py:61
+    // assert Txn.sender != seller.native, "Buyer and seller must differ"
+    txn Sender
+    dig 3
+    !=
+    assert // Buyer and seller must differ
+    // smart_contracts/escrow/contract.py:63
+    // self.buyer.value = arc4.Address(Txn.sender)
+    bytec_1 // "buyer"
+    txn Sender
+    app_global_put
+    // smart_contracts/escrow/contract.py:64
+    // self.seller.value = seller.copy()
+    bytec_3 // "seller"
+    uncover 3
+    app_global_put
+    // smart_contracts/escrow/contract.py:65
+    // self.amount.value = payment.amount
+    bytec_2 // "amount"
+    dig 1
+    app_global_put
+    // smart_contracts/escrow/contract.py:66
+    // self.service_hash.value = service_hash.native
+    swap
+    extract 2 0
+    pushbytes "service_hash"
+    swap
+    app_global_put
+    // smart_contracts/escrow/contract.py:67
+    // self.status.value = UInt64(1)  # LOCKED
+    bytec_0 // "status"
+    intc_1 // 1
+    app_global_put
+    // smart_contracts/escrow/contract.py:45
+    // @arc4.abimethod
+    itob
+    bytec 4 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.submit_delivery[routing]() -> void:
+submit_delivery:
+    // smart_contracts/escrow/contract.py:71
+    // @arc4.abimethod
+    txna ApplicationArgs 1
+    dup
+    intc_0 // 0
+    extract_uint16 // on error: invalid array length header
+    intc_2 // 2
+    +
+    dig 1
+    len
+    ==
+    assert // invalid number of bytes for arc4.dynamic_array<arc4.uint8>
+    // smart_contracts/escrow/contract.py:77
+    // assert arc4.Address(Txn.sender) == self.seller.value, "Only seller can submit delivery"
+    txn Sender
+    intc_0 // 0
+    bytec_3 // "seller"
+    app_global_get_ex
+    assert // check self.seller exists
+    ==
+    assert // Only seller can submit delivery
+    // smart_contracts/escrow/contract.py:78
+    // assert self.status.value == UInt64(1), "Deal must be in LOCKED state"
+    intc_0 // 0
+    bytec_0 // "status"
+    app_global_get_ex
+    assert // check self.status exists
+    intc_1 // 1
+    ==
+    assert // Deal must be in LOCKED state
+    // smart_contracts/escrow/contract.py:80
+    // self.delivery_hash.value = delivery_hash.native
+    extract 2 0
+    pushbytes "delivery_hash"
+    swap
+    app_global_put
+    // smart_contracts/escrow/contract.py:81
+    // self.status.value = UInt64(2)  # DELIVERED
+    bytec_0 // "status"
+    intc_2 // 2
+    app_global_put
+    // smart_contracts/escrow/contract.py:71
+    // @arc4.abimethod
+    intc_1 // 1
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.release_payment[routing]() -> void:
+release_payment:
+    // smart_contracts/escrow/contract.py:89
+    // assert arc4.Address(Txn.sender) == self.buyer.value, "Only buyer can release payment"
+    txn Sender
+    intc_0 // 0
+    bytec_1 // "buyer"
+    app_global_get_ex
+    assert // check self.buyer exists
+    ==
+    assert // Only buyer can release payment
+    // smart_contracts/escrow/contract.py:90
+    // assert self.status.value == UInt64(2), "Delivery must be submitted first"
+    intc_0 // 0
+    bytec_0 // "status"
+    app_global_get_ex
+    assert // check self.status exists
+    intc_2 // 2
+    ==
+    assert // Delivery must be submitted first
+    // smart_contracts/escrow/contract.py:92-96
+    // itxn.Payment(
+    //     receiver=self.seller.value.native,
+    //     amount=self.amount.value,
+    //     fee=Global.min_txn_fee,
+    // ).submit()
+    itxn_begin
+    // smart_contracts/escrow/contract.py:95
+    // fee=Global.min_txn_fee,
+    global MinTxnFee
+    // smart_contracts/escrow/contract.py:93
+    // receiver=self.seller.value.native,
+    intc_0 // 0
+    bytec_3 // "seller"
+    app_global_get_ex
+    assert // check self.seller exists
+    // smart_contracts/escrow/contract.py:94
+    // amount=self.amount.value,
+    intc_0 // 0
+    bytec_2 // "amount"
+    app_global_get_ex
+    assert // check self.amount exists
+    itxn_field Amount
+    itxn_field Receiver
+    // smart_contracts/escrow/contract.py:92
+    // itxn.Payment(
+    intc_1 // pay
+    itxn_field TypeEnum
+    itxn_field Fee
+    // smart_contracts/escrow/contract.py:92-96
+    // itxn.Payment(
+    //     receiver=self.seller.value.native,
+    //     amount=self.amount.value,
+    //     fee=Global.min_txn_fee,
+    // ).submit()
+    itxn_submit
+    // smart_contracts/escrow/contract.py:98
+    // self.status.value = UInt64(3)  # SETTLED
+    bytec_0 // "status"
+    intc_3 // 3
+    app_global_put
+    // smart_contracts/escrow/contract.py:83
+    // @arc4.abimethod
+    intc_1 // 1
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.refund_buyer[routing]() -> void:
+refund_buyer:
+    // smart_contracts/escrow/contract.py:106
+    // assert arc4.Address(Txn.sender) == self.buyer.value, "Only buyer can claim refund"
+    txn Sender
+    intc_0 // 0
+    bytec_1 // "buyer"
+    app_global_get_ex
+    assert // check self.buyer exists
+    swap
+    dig 1
+    ==
+    assert // Only buyer can claim refund
+    // smart_contracts/escrow/contract.py:107
+    // assert self.status.value == UInt64(1), "Deal must be in LOCKED state"
+    intc_0 // 0
+    bytec_0 // "status"
+    app_global_get_ex
+    assert // check self.status exists
+    intc_1 // 1
+    ==
+    assert // Deal must be in LOCKED state
+    // smart_contracts/escrow/contract.py:109-113
+    // itxn.Payment(
+    //     receiver=self.buyer.value.native,
+    //     amount=self.amount.value,
+    //     fee=Global.min_txn_fee,
+    // ).submit()
+    itxn_begin
+    // smart_contracts/escrow/contract.py:112
+    // fee=Global.min_txn_fee,
+    global MinTxnFee
+    // smart_contracts/escrow/contract.py:111
+    // amount=self.amount.value,
+    intc_0 // 0
+    bytec_2 // "amount"
+    app_global_get_ex
+    assert // check self.amount exists
+    itxn_field Amount
+    swap
+    itxn_field Receiver
+    // smart_contracts/escrow/contract.py:109
+    // itxn.Payment(
+    intc_1 // pay
+    itxn_field TypeEnum
+    itxn_field Fee
+    // smart_contracts/escrow/contract.py:109-113
+    // itxn.Payment(
+    //     receiver=self.buyer.value.native,
+    //     amount=self.amount.value,
+    //     fee=Global.min_txn_fee,
+    // ).submit()
+    itxn_submit
+    // smart_contracts/escrow/contract.py:115
+    // self.status.value = UInt64(4)  # REFUNDED
+    bytec_0 // "status"
+    pushint 4
+    app_global_put
+    // smart_contracts/escrow/contract.py:100
+    // @arc4.abimethod
+    intc_1 // 1
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.get_status[routing]() -> void:
+get_status:
+    // smart_contracts/escrow/contract.py:120
+    // return self.status.value
+    intc_0 // 0
+    bytec_0 // "status"
+    app_global_get_ex
+    assert // check self.status exists
+    // smart_contracts/escrow/contract.py:117
+    // @arc4.abimethod(readonly=True)
+    itob
+    bytec 4 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
+
+
+// smart_contracts.escrow.contract.CommerceEscrow.get_amount[routing]() -> void:
+get_amount:
+    // smart_contracts/escrow/contract.py:125
+    // return self.amount.value
+    intc_0 // 0
+    bytec_2 // "amount"
+    app_global_get_ex
+    assert // check self.amount exists
+    // smart_contracts/escrow/contract.py:122
+    // @arc4.abimethod(readonly=True)
+    itob
+    bytec 4 // 0x151f7c75
+    swap
+    concat
+    log
+    intc_1 // 1
+    return
