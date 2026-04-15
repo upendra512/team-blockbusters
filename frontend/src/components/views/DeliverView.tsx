@@ -203,11 +203,22 @@ export default function DeliverView() {
             )}
           </div>
 
-          <div className="text-center space-y-1">
+          <div className="text-center space-y-1.5">
             <p className="text-xs font-semibold text-on-surface">
               {escrow ? `Contract #${escrow.app_id}` : "Awaiting contract…"}
             </p>
             <p className="text-[10px] text-outline">Scan to verify on Algorand Explorer</p>
+            {escrow && (
+              <a
+                href={`https://lora.algokit.io/testnet/application/${escrow.app_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 13 }}>open_in_new</span>
+                lora.algokit.io/testnet/application/{escrow.app_id}
+              </a>
+            )}
             {ctx.delivery && (
               <p className="text-[10px] font-mono text-outline break-all px-2">
                 {ctx.delivery.delivery_hash.slice(0, 24)}…
