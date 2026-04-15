@@ -6,6 +6,7 @@ Maintains per-session state. Returns structured ShipmentIntent once complete.
 """
 import json
 import re
+from datetime import date, timedelta
 from typing import Optional
 
 from groq import AsyncGroq
@@ -21,6 +22,7 @@ REQUIRED_FIELDS = [
     "user_type", "origin_pincode", "destination_pincode",
     "weight_kg", "length_cm", "width_cm", "height_cm",
     "package_type", "pickup_date", "max_budget_inr",
+    "delivery_priority",
 ]
 
 SYSTEM_PROMPT = """You are a friendly freight booking assistant for an AI-powered shipping platform.
@@ -35,17 +37,23 @@ You need to collect these details (ask one or two at a time, naturally):
 6. package_type: Type of goods (clothing, electronics, documents, fragile, general, etc.)
 7. pickup_date: Preferred pickup date (YYYY-MM-DD)
 8. max_budget_inr: Maximum budget in INR
+9. delivery_priority: Ask — "What matters most for this shipment?"
+   - Reply "cheapest" if they say cost / budget / save money
+   - Reply "fastest" if they say speed / urgent / next day / express
+   - Reply "balanced" if they say reliable / standard / mix of both
 
 Rules:
 - Be conversational and friendly
 - Ask follow-up questions if answers are unclear
 - Validate pincodes (must be 6 digits, start with non-zero)
-- Once you have ALL details, respond with a JSON block like:
+- Ask the delivery_priority question naturally, e.g.: "What matters most — lowest price, fastest delivery, or a balance of both?"
+- Once you have ALL details including delivery_priority, respond with a JSON block like:
   ```json
-  {"collected": true, "data": {"user_type": "...", "origin_pincode": "...", ...}}
+  {"collected": true, "data": {"user_type": "...", "origin_pincode": "...", "delivery_priority": "cheapest", ...}}
   ```
 - Before the JSON, give a friendly confirmation message
 - Do NOT ask for more info after you have all fields
+- delivery_priority must be one of: "cheapest", "balanced", "fastest"
 """
 
 
@@ -71,8 +79,12 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
     if session["complete"]:
         return "All shipment details are already collected. Click 'Find Quotes' to proceed!", True, _build_intent(session["collected"])
 
-    # Build conversation history for Groq
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Inject today's date so LLM never uses placeholder strings
+    today_str = date.today().isoformat()          # e.g. "2026-04-15"
+    tomorrow_str = (date.today() + timedelta(days=1)).isoformat()
+    dated_system = SYSTEM_PROMPT + f"\n\nToday's date is {today_str}. Tomorrow is {tomorrow_str}. Always use real ISO dates (YYYY-MM-DD), never placeholders."
+
+    messages = [{"role": "system", "content": dated_system}]
     for h in session["history"]:
         role = "assistant" if h["role"] == "model" else h["role"]
         messages.append({"role": role, "content": h["content"]})
@@ -90,22 +102,42 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
     session["history"].append({"role": "user", "content": user_message})
     session["history"].append({"role": "model", "content": reply})
 
-    # Check if all fields collected (parse JSON block if present)
+    # ── Parse completion JSON (code-fenced OR raw) ────────────────────────────
     intent = None
     is_complete = False
 
-    json_match = re.search(r"```json\s*(\{.*?\})\s*```", reply, re.DOTALL)
-    if json_match:
+    def _try_parse(text: str) -> Optional[dict]:
+        """Try to extract and parse a {collected: true, data: {...}} JSON object."""
+        # 1. Code-fenced ```json ... ```
+        m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if m:
+            try:
+                p = json.loads(m.group(1))
+                if p.get("collected") and p.get("data"):
+                    return p
+            except json.JSONDecodeError:
+                pass
+        # 2. Raw JSON object anywhere in the reply
+        for m in re.finditer(r"\{[^{}]*\"collected\"[^{}]*\}", text, re.DOTALL):
+            try:
+                p = json.loads(m.group(0))
+                if p.get("collected") and p.get("data"):
+                    return p
+            except json.JSONDecodeError:
+                continue
+        return None
+
+    parsed = _try_parse(reply)
+    if parsed:
         try:
-            parsed = json.loads(json_match.group(1))
-            if parsed.get("collected") and parsed.get("data"):
-                session["collected"] = parsed["data"]
-                session["complete"] = True
-                is_complete = True
-                intent = _build_intent(parsed["data"])
-                # Strip the raw JSON block from the displayed reply
-                clean_reply = re.sub(r"```json\s*\{.*?\}\s*```", "", reply, flags=re.DOTALL).strip()
-                reply = clean_reply + "\n\n✅ All details collected! Click **Start Negotiation** to find the best carrier rates."
+            session["collected"] = parsed["data"]
+            session["complete"] = True
+            is_complete = True
+            intent = _build_intent(parsed["data"])
+            # Strip raw JSON / code block from the displayed reply
+            clean_reply = re.sub(r"```json\s*\{.*?\}\s*```", "", reply, flags=re.DOTALL)
+            clean_reply = re.sub(r"\{[^{}]*\"collected\"[^{}]*\}", "", clean_reply, flags=re.DOTALL).strip()
+            reply = clean_reply + "\n\n✅ All details collected! Click **Start Negotiation** to find the best carrier rates."
         except (json.JSONDecodeError, KeyError):
             pass
 
@@ -113,6 +145,14 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
 
 
 def _build_intent(data: dict) -> ShipmentIntent:
+    # Sanitise pickup_date — reject non-ISO placeholders from LLM
+    raw_date = str(data.get("pickup_date", ""))
+    try:
+        date.fromisoformat(raw_date)
+        pickup_date = raw_date
+    except (ValueError, TypeError):
+        pickup_date = (date.today() + timedelta(days=1)).isoformat()
+
     return ShipmentIntent(
         user_type=data.get("user_type", "individual"),
         origin_pincode=str(data.get("origin_pincode", "")),
@@ -122,9 +162,11 @@ def _build_intent(data: dict) -> ShipmentIntent:
         width_cm=float(data.get("width_cm", 20)),
         height_cm=float(data.get("height_cm", 20)),
         package_type=str(data.get("package_type", "general")),
-        pickup_date=str(data.get("pickup_date", "2026-04-15")),
+        pickup_date=pickup_date,
         max_budget_inr=float(data.get("max_budget_inr", 1000)),
+        delivery_priority=str(data.get("delivery_priority", "cheapest")),
     )
+
 
 
 def get_session_intent(session_id: str) -> Optional[ShipmentIntent]:

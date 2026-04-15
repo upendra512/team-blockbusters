@@ -160,6 +160,7 @@ async def negotiate_stream(
     height_cm: float = 30,
     package_type: str = "general",
     user_type: str = "business",
+    delivery_priority: str = "cheapest",
 ):
     """
     SSE endpoint — streams negotiation messages in real time.
@@ -177,6 +178,7 @@ async def negotiate_stream(
         package_type=package_type,
         pickup_date=pickup_date,
         max_budget_inr=max_budget_inr,
+        delivery_priority=delivery_priority,
     )
 
     # Resolve pincodes + live data

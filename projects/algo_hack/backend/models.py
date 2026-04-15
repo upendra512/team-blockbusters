@@ -32,6 +32,7 @@ class ShipmentIntent(BaseModel):
     package_type: str                   # clothing, electronics, documents, etc.
     pickup_date: str                    # ISO date string
     max_budget_inr: float
+    delivery_priority: str = "cheapest" # "cheapest" | "balanced" | "fastest"
 
 
 # ── Carrier / Quotes ──────────────────────────────────────────────────────────
