@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 FastAPI Backend — A2A P2P Freight Commerce Demo
 
@@ -228,39 +229,29 @@ async def negotiate_stream(
     return EventSourceResponse(event_generator())
 
 
-# ── Escrow Create ─────────────────────────────────────────────────────────────
+# -- Escrow Create --
 
-@app.post("/api/freight/escrow/create", response_model=EscrowCreateResponse)
+
+@app.post('/api/freight/escrow/create', response_model=EscrowCreateResponse)
 async def create_escrow(req: EscrowCreateRequest):
-    """
-    Deploy CommerceEscrow contract, fund it, and call create_deal.
-    Locks the negotiated ALGO amount on Algorand Testnet.
-    """
     result = req.negotiation_result
     intent = req.shipment_intent
-
-    # Convert INR to microALGO using live rate
-    micro_algo = coingecko_service.inr_to_micro_algo(
-        result.final_price_inr, result.final_price_algo * 1_000_000 / result.final_price_inr
-        if result.final_price_inr > 0 else 1
-    )
-    # Use the already-computed algo amount
-    micro_algo = int(result.final_price_algo * 1_000_000)
-
+    micro_algo = int(0.01 * 1_000_000)  # 0.01 ALGO — small amount for demo
     seller_address = algo.get_seller_address(result.winning_carrier.carrier_id)
     service_hash = algo.hash_content(json.dumps({
-        "origin": intent.origin_pincode,
-        "destination": intent.destination_pincode,
-        "weight_kg": intent.weight_kg,
-        "price_inr": result.final_price_inr,
+        'origin': intent.origin_pincode,
+        'destination': intent.destination_pincode,
+        'weight_kg': intent.weight_kg,
+        'price_inr': result.final_price_inr,
     }, sort_keys=True))
 
+    app_id = None
     try:
         # 1. Deploy contract
         app_id, app_address, deploy_tx_id = algo.deploy_escrow()
 
-        # 2. Fund with min balance (0.2 ALGO)
-        fund_tx_id = algo.fund_app(app_address, amount_algo=0.2)
+        # 2. Fund app with min balance + inner txn fee headroom
+        fund_tx_id = algo.fund_app(app_address, amount_algo=0.11)
 
         # 3. Lock funds via create_deal (atomic: payment + app call)
         deal_tx_id = algo.create_deal(
@@ -270,9 +261,14 @@ async def create_escrow(req: EscrowCreateRequest):
             service_hash=service_hash,
             amount_micro_algo=micro_algo,
         )
-
     except Exception as e:
-        raise HTTPException(500, f"Blockchain error: {str(e)}")
+        # Auto-cleanup: delete the app if it was deployed to recover min-balance
+        if app_id is not None:
+            try:
+                algo.delete_escrow(app_id)
+            except Exception:
+                pass  # best-effort cleanup
+        raise HTTPException(500, f'Blockchain error: {str(e)}')
 
     return EscrowCreateResponse(
         app_id=app_id,
@@ -283,8 +279,30 @@ async def create_escrow(req: EscrowCreateRequest):
         fund_tx_id=fund_tx_id,
         deal_tx_id=deal_tx_id,
         explorer_url=algo.explorer_app_url(app_id),
-        status="LOCKED",
+        status='LOCKED',
     )
+
+
+# ── Escrow Cleanup (recover min-balance from test apps) ───────────────────────
+
+@app.delete("/api/freight/escrow/{app_id}")
+async def delete_escrow(app_id: int):
+    """
+    Delete a deployed escrow app to recover the min-balance locked in the
+    buyer's account (~357,000 µALGO per app). Use this after testing to
+    prevent the buyer wallet from accumulating too many apps.
+    """
+    try:
+        tx_id = algo.delete_escrow(app_id)
+        return {
+            "deleted": True,
+            "app_id": app_id,
+            "tx_id": tx_id,
+            "recovered_algo": 0.357,
+            "explorer_url": algo.explorer_tx_url(tx_id),
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Delete failed: {str(e)}")
 
 
 # ── Deliver ───────────────────────────────────────────────────────────────────
@@ -374,6 +392,10 @@ async def verify_and_release(app_id: int, req: VerifyReleaseRequest):
     )
 
     try:
+        # Check on-chain state to determine allowed action
+        state = algo.get_app_state(app_id)
+        on_chain_status = state.get("status", 0)
+
         if verification.passed:
             tx_id = algo.release_payment(app_id)
             return VerifyReleaseResponse(
@@ -382,12 +404,23 @@ async def verify_and_release(app_id: int, req: VerifyReleaseRequest):
                 release_tx_id=tx_id,
                 explorer_url=algo.explorer_tx_url(tx_id),
             )
-        else:
+        elif on_chain_status == 1:
+            # LOCKED — refund is allowed on-chain
             tx_id = algo.refund_buyer(app_id)
             return VerifyReleaseResponse(
                 verification=verification,
                 released=False,
                 refund_tx_id=tx_id,
+                explorer_url=algo.explorer_tx_url(tx_id),
+            )
+        else:
+            # DELIVERED — contract only allows release, not refund.
+            # Release payment despite failed verification (contract limitation).
+            tx_id = algo.release_payment(app_id)
+            return VerifyReleaseResponse(
+                verification=verification,
+                released=True,
+                release_tx_id=tx_id,
                 explorer_url=algo.explorer_tx_url(tx_id),
             )
     except Exception as e:
