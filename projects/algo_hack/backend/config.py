@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     openrouteservice_api_key: str = ""
     # openweathermap replaced by Open-Meteo (free, no key needed)
 
+    # CORS — comma-separated origins, or "*" for all (production default)
+    allowed_origins: str = "*"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
