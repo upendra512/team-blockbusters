@@ -9,14 +9,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Keep legacy algo-* tokens mapped to new zinc/emerald palette
         algo: {
-          green: "#00DC82",
-          dark: "#0D1117",
-          card: "#161B22",
-          border: "#30363D",
-          text: "#C9D1D9",
-          muted: "#8B949E",
+          green:  "#34d399", // emerald-400
+          dark:   "#09090b", // zinc-950
+          card:   "#18181b", // zinc-900
+          border: "#27272a", // zinc-800
+          text:   "#f4f4f5", // zinc-100
+          muted:  "#a1a1aa", // zinc-400
         },
+      },
+      fontFamily: {
+        sans: [
+          "Inter", "system-ui", "-apple-system", "BlinkMacSystemFont",
+          "Segoe UI", "Roboto", "sans-serif",
+        ],
+        mono: ["JetBrains Mono", "Fira Code", "Consolas", "monospace"],
       },
     },
   },

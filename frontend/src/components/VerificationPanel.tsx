@@ -11,56 +11,84 @@ export default function VerificationPanel({ delivery, result }: VerificationPane
   if (!delivery && !result) return null;
 
   return (
-    <div className="bg-algo-card border border-algo-border rounded-xl p-4 space-y-4">
-      <h3 className="font-semibold text-algo-text">Delivery & Verification</h3>
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-5">
+      <h3 className="text-sm font-semibold text-zinc-100">Delivery & Verification</h3>
 
       {/* Delivery receipt */}
       {delivery && (
-        <div className="space-y-2">
-          <p className="text-xs text-algo-muted uppercase tracking-wider">Delivery Receipt</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <div>
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest mb-3">
+            Delivery Receipt
+          </p>
+          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
             {[
-              ["Truck", delivery.delivery_receipt.truck_number],
-              ["Driver", delivery.delivery_receipt.driver_name],
-              ["Carrier", delivery.delivery_receipt.carrier_name],
-              ["Weight", `${delivery.delivery_receipt.weight_kg} kg`],
+              ["Truck",    delivery.delivery_receipt.truck_number],
+              ["Driver",   delivery.delivery_receipt.driver_name],
+              ["Carrier",  delivery.delivery_receipt.carrier_name],
+              ["Weight",   `${delivery.delivery_receipt.weight_kg} kg`],
               ["Distance", `${delivery.delivery_receipt.route_distance_km} km`],
-              ["Price", `₹${delivery.delivery_receipt.agreed_price_inr.toFixed(0)}`],
+              ["Price",    `₹${delivery.delivery_receipt.agreed_price_inr.toFixed(0)}`],
             ].map(([label, val]) => (
-              <div key={label}>
-                <span className="text-algo-muted">{label}: </span>
-                <span className="text-algo-text">{val}</span>
+              <div key={label} className="flex flex-col gap-0.5">
+                <span className="text-zinc-600">{label}</span>
+                <span className="text-zinc-200 font-medium">{val}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Divider between sections */}
+      {delivery && result && <div className="divider-glow" />}
+
       {/* Verification checks */}
       {result && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-algo-muted uppercase tracking-wider">AI Verification</p>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">
+              AI Verification
+            </p>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${
               result.verification.passed
-                ? "bg-algo-green/20 text-algo-green"
-                : "bg-red-900/30 text-red-400"
+                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/30"
+                : "bg-red-500/10 text-red-400 ring-red-500/30"
             }`}>
-              {result.verification.score}/5 checks passed
+              {result.verification.score}/5
             </span>
           </div>
 
-          <div className="space-y-1">
+          {/* Score bar */}
+          <div className="h-1 bg-zinc-800 rounded-full mb-4 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${
+                result.verification.passed ? "bg-emerald-500" : "bg-red-500"
+              }`}
+              style={{ width: `${(result.verification.score / 5) * 100}%` }}
+            />
+          </div>
+
+          <div className="space-y-2">
             {result.verification.checks.map((check, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <span className={check.passed ? "text-algo-green" : "text-red-400"}>
-                  {check.passed ? "✓" : "✗"}
-                </span>
+              <div key={i} className={`flex items-start gap-2.5 text-xs rounded-xl px-3 py-2 ${
+                check.passed
+                  ? "bg-emerald-500/5 border border-emerald-500/15"
+                  : "bg-red-500/5 border border-red-500/15"
+              }`}>
+                {/* Check icon */}
+                <div className={`w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5 ${
+                  check.passed ? "bg-emerald-500/20" : "bg-red-500/20"
+                }`}>
+                  <span className={`text-[10px] font-bold ${check.passed ? "text-emerald-400" : "text-red-400"}`}>
+                    {check.passed ? "✓" : "✗"}
+                  </span>
+                </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-algo-text">{check.name}</span>
+                  <p className={`font-medium ${check.passed ? "text-zinc-200" : "text-zinc-300"}`}>
+                    {check.name}
+                  </p>
                   {!check.passed && (
-                    <p className="text-xs text-red-400 truncate">
-                      Expected: {check.expected} | Got: {check.actual}
+                    <p className="text-red-400/80 text-[10px] mt-0.5 truncate">
+                      Expected: {check.expected}
                     </p>
                   )}
                 </div>
@@ -68,10 +96,11 @@ export default function VerificationPanel({ delivery, result }: VerificationPane
             ))}
           </div>
 
-          <div className={`text-sm font-medium p-2 rounded ${
+          {/* Summary */}
+          <div className={`mt-3 text-xs font-medium px-3 py-2.5 rounded-xl ${
             result.verification.passed
-              ? "bg-algo-green/10 text-algo-green"
-              : "bg-red-900/20 text-red-400"
+              ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+              : "bg-red-500/10 text-red-300 border border-red-500/20"
           }`}>
             {result.verification.summary}
           </div>
