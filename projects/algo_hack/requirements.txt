@@ -7,5 +7,3 @@ python-dotenv>=1.0.0
 py-algorand-sdk>=2.6.0
 pydantic>=2.6.0
 pydantic-settings>=2.2.0
-algokit-utils>=4.0.0
-algorand-python>=3
