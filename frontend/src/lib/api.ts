@@ -5,6 +5,11 @@ import type {
 } from "./types";
 
 const BASE = "/api";
+// SSE bypasses the Next.js rewrite proxy directly to avoid response buffering issues.
+const SSE_BASE =
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000") + "/api"
+    : "/api";
 
 export async function sendChatMessage(message: string, sessionId: string) {
   const res = await fetch(`${BASE}/chat/message`, {
@@ -56,7 +61,7 @@ export function startNegotiationStream(
     user_type: intent.user_type,
   });
 
-  const es = new EventSource(`${BASE}/freight/negotiate/stream?${params}`);
+  const es = new EventSource(`${SSE_BASE}/freight/negotiate/stream?${params}`);
   es.addEventListener("market", (e) => onMarket(JSON.parse(e.data)));
   es.addEventListener("quotes", (e) => onQuotes(JSON.parse(e.data)));
   es.addEventListener("message", (e) => onMessage(JSON.parse(e.data)));

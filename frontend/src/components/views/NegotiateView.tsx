@@ -44,6 +44,11 @@ export default function NegotiateView() {
     msgBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [localMsgs]);
 
+  // Reset started ref on unmount so user can retry by navigating away and back
+  useEffect(() => {
+    return () => { started.current = false; };
+  }, []);
+
   // Auto-start on mount
   useEffect(() => {
     if (started.current || !intent) return;
@@ -89,7 +94,8 @@ export default function NegotiateView() {
         await runEscrow(result);
       },
       () => {
-        toast.error("Negotiation stream failed. Check backend.", { id: toastId });
+        toast.error("Stream error — click Retry to try again.", { id: toastId });
+        started.current = false; // allow retry
         setPhase("init");
       },
     );
@@ -149,6 +155,17 @@ export default function NegotiateView() {
               </span>
             )}
           </div>
+
+          {/* Retry button — shown when SSE failed */}
+          {phase === "init" && localQuotes.length === 0 && (
+            <button
+              onClick={() => { started.current = false; setPhase("init"); /* trigger re-mount by forcing re-render */ window.location.reload(); }}
+              className="w-full mb-3 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
+              Retry Negotiation
+            </button>
+          )}
 
           <div className="space-y-3">
             {localQuotes.length === 0
