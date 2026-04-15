@@ -7,7 +7,7 @@ Buyer AI agent ↔ Carrier AI agents · Live market data · On-chain escrow.
 ---
 
 ## Prerequisites
-- Python 3.12+, Poetry
+- Python 3.12+, Poetry (install via `pip install poetry`)
 - Node.js 18+
 - AlgoKit CLI: `pip install algokit`
 - API Keys: Gemini, OpenRouteService, OpenWeatherMap (all free tier)
@@ -18,6 +18,7 @@ Buyer AI agent ↔ Carrier AI agents · Live market data · On-chain escrow.
 
 ```bash
 cd projects/algo_hack
+pip install poetry
 poetry install
 poetry run python backend/setup_wallets.py
 ```
