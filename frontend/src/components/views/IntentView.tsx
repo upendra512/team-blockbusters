@@ -44,7 +44,7 @@ export default function IntentView() {
   const { sessionId, setIntent, goTo } = useShipment();
   const [msgs, setMsgs]     = useState<Msg[]>([{
     role: "assistant",
-    content: "Greetings. I am your Intent Agent — a blockchain-verified AI.\n\nDescribe your cargo: what you need to ship, from where to where. I'll extract the details and prepare your shipment for autonomous negotiation.",
+    content: "Hi! I am your Intent Agent, an AI-powered freight booking assistant.\n\nDescribe your cargo: what you need to ship, from where to where. I'll extract the details and prepare your shipment for autonomous negotiation.",
   }]);
   const [input, setInput]   = useState("");
   const [busy, setBusy]     = useState(false);

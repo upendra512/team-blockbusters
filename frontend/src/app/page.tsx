@@ -28,7 +28,7 @@ const VIEW_DESCS: Record<number, string> = {
 
 // ── Main shell ────────────────────────────────────────────────────────────────
 function Shell() {
-  const { view, goTo, intent, escrow } = useShipment();
+  const { view, goTo, intent, escrow, delivery, verifyResult } = useShipment();
 
   const unlocked = (v: 1 | 2 | 3) =>
     v === 1 || (v === 2 && !!intent) || (v === 3 && !!escrow);
@@ -36,13 +36,18 @@ function Shell() {
   // Map step index to "done" state
   const stepDone = (i: number) => {
     if (i === 0) return view > 1 || !!intent;
-    if (i === 1 || i === 2) return view > 2 || !!escrow;
-    return view > 3;
+    if (i === 1) return view > 2 || !!escrow;      // Negotiate
+    if (i === 2) return view > 2 || !!escrow;      // Lock Escrow
+    if (i === 3) return !!verifyResult;             // Deliver
+    if (i === 4) return !!verifyResult;             // Settle
+    return false;
   };
   const stepActive = (i: number) => {
     if (i === 0) return view === 1;
     if (i === 1 || i === 2) return view === 2;
-    return view === 3;
+    if (i === 3) return view === 3 && !verifyResult; // Deliver active until settled
+    if (i === 4) return view === 3 && !!verifyResult; // Settle active after settled
+    return false;
   };
 
   return (
@@ -102,20 +107,27 @@ function Shell() {
         </div>
 
         <nav className="flex flex-col gap-0.5 flex-1">
-          {[
+        {[
             { v: 1 as const, icon: "chat_bubble",    label: "Intent"    },
             { v: 2 as const, icon: "handshake",      label: "Negotiate" },
             { v: 2 as const, icon: "lock",           label: "Escrow"    },
-            { v: 3 as const, icon: "local_shipping", label: "Deliver"   },
-            { v: 3 as const, icon: "payments",       label: "Settle"    },
-          ].map(({ v, icon, label }, i) => {
-            const isCurrentView = view === v;
+            { v: 3 as const, icon: "local_shipping", label: "Deliver",  done: !!delivery       },
+            { v: 3 as const, icon: "payments",       label: "Settle",   done: !!verifyResult   },
+          ].map(({ v, icon, label, done: itemDone }, i) => {
+            // Per-item active logic so each sidebar item has independent highlight
+            const isActive =
+              i === 0 ? view === 1 :
+              i === 1 ? (view === 2 && !escrow) :   // Negotiate: active while negotiating
+              i === 2 ? (view === 2 && !!escrow) :  // Escrow: active after lock
+              i === 3 ? (view === 3 && !verifyResult) :
+              i === 4 ? (view === 3 && !!verifyResult) :
+              false;
             const isLocked = !unlocked(v);
             return (
               <button key={i} onClick={() => unlocked(v) && goTo(v)}
                 disabled={isLocked}
                 className={`flex items-center gap-4 py-3 text-sm font-semibold uppercase tracking-wider transition-all duration-200 ${
-                  isCurrentView
+                  isActive
                     ? "bg-white text-primary ml-4 pl-4 rounded-l-full shadow-sm border-r-0"
                     : isLocked
                       ? "px-8 text-slate-300 cursor-not-allowed"

@@ -61,9 +61,9 @@ export default function DeliverView() {
   useEffect(() => {
     if (!started.current && delivery && negResult && escrow) {
       setLogs([
-        { time: "—", icon: "inventory",     text: `Assigned to ${negResult.winning_carrier.carrier_name}`,  color: "text-primary" },
-        { time: "—", icon: "lock",          text: `${escrow.amount_algo} ALGO locked`,                       color: "text-outline" },
-        { time: "—", icon: "check_circle",  text: `Receipt: ${delivery.delivery_receipt.truck_number}`,      color: "text-primary" },
+        { time: "--", icon: "inventory",     text: `Assigned to ${negResult.winning_carrier.carrier_name}`,  color: "text-primary" },
+        { time: "--", icon: "lock",          text: `${escrow.amount_algo} ALGO locked`,                       color: "text-outline" },
+        { time: "--", icon: "check_circle",  text: `Receipt: ${delivery.delivery_receipt.truck_number}`,      color: "text-primary" },
       ]);
     }
   }, []);
@@ -93,7 +93,7 @@ export default function DeliverView() {
       } else {
         setPhase("refunded");
         ctx.setEscrow({ ...escrow, status: "REFUNDED" });
-        toast.error("Verification failed — buyer refunded", { id: toastId, duration: 6000 });
+        toast.error("Verification failed: buyer refunded", { id: toastId, duration: 6000 });
         addLog("undo", `Refund issued: ${escrow.amount_algo} ALGO → buyer`, "text-error");
       }
     } catch (e: any) {
@@ -104,7 +104,7 @@ export default function DeliverView() {
 
   const receipt = ctx.delivery?.delivery_receipt;
   const qrValue = escrow
-    ? `https://testnet.algoexplorer.io/application/${escrow.app_id}`
+    ? `https://lora.algokit.io/testnet/application/${escrow.app_id}`
     : "A2A Freight Commerce";
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrValue)}&size=200x200&color=0b1c30&bgcolor=ffffff&qzone=2`;
 
@@ -176,7 +176,7 @@ export default function DeliverView() {
       </div>
 
       {/* ── Center: QR Code ───────────────────────────────────────────────── */}
-      <div className="col-span-5 flex flex-col items-center justify-center gap-5">
+      <div className="col-span-5 flex flex-col items-center gap-5 overflow-y-auto scrollbar-thin pb-4">
         <div className="bento p-8 flex flex-col items-center gap-5 w-full max-w-sm mx-auto">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-outline text-center mb-1">
@@ -253,6 +253,7 @@ export default function DeliverView() {
                 style={{ width: `${(ctx.verifyResult.verification.score / 5) * 100}%`, transition: "width 0.6s ease" }}
               />
             </div>
+            {/* All 5 checks — scrollable via parent column */}
             <div className="space-y-1.5">
               {ctx.verifyResult.verification.checks.map((c, i) => (
                 <div key={i} className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-xl ${
@@ -328,7 +329,7 @@ export default function DeliverView() {
           ))}
           {(phase === "delivering" || phase === "verifying") && (
             <div className="flex gap-2 text-xs text-outline animate-pulse">
-              <span className="text-[10px] font-mono pt-0.5">—</span>
+              <span className="text-[10px] font-mono pt-0.5">--</span>
               <span>Processing…</span>
             </div>
           )}

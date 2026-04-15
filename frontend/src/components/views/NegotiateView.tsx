@@ -94,7 +94,7 @@ export default function NegotiateView() {
         await runEscrow(result);
       },
       () => {
-        toast.error("Stream error — click Retry to try again.", { id: toastId });
+        toast.error("Stream error. Click Retry to try again.", { id: toastId });
         started.current = false; // allow retry
         setPhase("init");
       },
@@ -294,13 +294,23 @@ export default function NegotiateView() {
             </div>
           )}
 
-          {/* Waiting state */}
+          {/* Waiting / failed state */}
           {phase !== "locked" && phase !== "creating" && escrowStep < 0 && (
-            <div className="text-center py-4">
+            <div className="text-center py-4 space-y-3">
               <span className="text-xs text-surface-container">
                 {phase === "streaming" ? "Waiting for negotiation to complete…" :
-                 phase === "negotiated" ? "Agreement reached — preparing escrow…" : "Waiting…"}
+                 phase === "negotiated" ? "Agreement reached, preparing escrow..." : "Waiting..."}
               </span>
+              {/* Retry button — shown after a failed escrow attempt */}
+              {phase === "negotiated" && negResult && (
+                <button
+                  onClick={() => runEscrow(negResult)}
+                  className="w-full py-2.5 bg-primary/20 hover:bg-primary/30 text-primary-fixed-dim rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>refresh</span>
+                  Retry Lock Escrow
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -37,16 +37,15 @@ You need to collect these details (ask one or two at a time, naturally):
 6. package_type: Type of goods (clothing, electronics, documents, fragile, general, etc.)
 7. pickup_date: Preferred pickup date (YYYY-MM-DD)
 8. max_budget_inr: Maximum budget in INR
-9. delivery_priority: Ask — "What matters most for this shipment?"
+9. delivery_priority: Ask what matters most for this shipment.
    - Reply "cheapest" if they say cost / budget / save money
    - Reply "fastest" if they say speed / urgent / next day / express
    - Reply "balanced" if they say reliable / standard / mix of both
 
-Rules:
 - Be conversational and friendly
 - Ask follow-up questions if answers are unclear
 - Validate pincodes (must be 6 digits, start with non-zero)
-- Ask the delivery_priority question naturally, e.g.: "What matters most — lowest price, fastest delivery, or a balance of both?"
+- Ask the delivery_priority question naturally, e.g.: "What matters most to you: lowest price, fastest delivery, or a balance of both?"
 - Once you have ALL details including delivery_priority, respond with a JSON block like:
   ```json
   {"collected": true, "data": {"user_type": "...", "origin_pincode": "...", "delivery_priority": "cheapest", ...}}
@@ -54,6 +53,7 @@ Rules:
 - Before the JSON, give a friendly confirmation message
 - Do NOT ask for more info after you have all fields
 - delivery_priority must be one of: "cheapest", "balanced", "fastest"
+- NEVER use em dashes (--), en dashes, or the special dash character in your responses. Use commas, colons, or plain words instead.
 """
 
 
@@ -97,10 +97,13 @@ async def process_message(session_id: str, user_message: str) -> tuple[str, bool
         max_tokens=1024,
     )
     reply = response.choices[0].message.content
+    # Strip em/en dashes regardless of what the model outputs
+    reply = reply.replace("\u2014", ",").replace("\u2013", "-")
 
     # Update history
     session["history"].append({"role": "user", "content": user_message})
     session["history"].append({"role": "model", "content": reply})
+
 
     # ── Parse completion JSON (code-fenced OR raw) ────────────────────────────
     intent = None

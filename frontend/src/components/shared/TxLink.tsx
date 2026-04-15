@@ -9,7 +9,9 @@ interface TxLinkProps {
 
 export default function TxLink({ label, txId, explorerUrl, appId }: TxLinkProps) {
   const short = txId ? `${txId.slice(0, 10)}…${txId.slice(-6)}` : "";
-  const url = explorerUrl || (txId ? `https://testnet.algoexplorer.io/tx/${txId}` : "#");
+  const url = explorerUrl
+    || (appId  ? `https://lora.algokit.io/testnet/application/${appId}` : "")
+    || (txId   ? `https://lora.algokit.io/testnet/transaction/${txId}`  : "#");
 
   return (
     <div className="flex items-center gap-2 bg-surface-container-low rounded-xl px-3 py-2 text-xs">
