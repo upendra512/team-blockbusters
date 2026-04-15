@@ -124,7 +124,7 @@ export default function ChatInterface({
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
               <path d="M10.28 2.28L4 8.56 1.72 6.28A1 1 0 00.28 7.72l3 3a1 1 0 001.44 0l7-7a1 1 0 00-1.44-1.44z"/>
             </svg>
-            Shipment details collected — proceed to negotiation
+            Shipment details collected. Proceed to negotiation.
           </p>
         )}
         <div className="flex gap-2">
