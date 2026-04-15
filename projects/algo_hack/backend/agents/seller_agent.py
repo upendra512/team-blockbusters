@@ -1,11 +1,13 @@
 """
 Seller Agent — three independent carrier AI agents.
 
-Each carrier has a profile. Quotes are computed dynamically from:
-- Live diesel price (primary cost driver)
-- Road distance (from OpenRouteService / Nominatim)
-- Weight and volume
-- Carrier's efficiency profile
+Each carrier has a profile based on real 2026 B2B merchant rate cards.
+Quotes are computed from:
+- Base rate per kg (from rate card mid-point)
+- Fuel surcharge (carrier-specific, applied to base)
+- Distance zone factor (couriers price by zone; longer = more expensive)
+- Volumetric weight check (LxWxH / 5000)
+- 18% GST on (base + fuel surcharge)
 
 Negotiation responses are LLM-generated but constrained by the carrier's
 minimum acceptable price (never revealed to the buyer).
@@ -16,35 +18,53 @@ from backend.config import settings
 from backend.models import CarrierQuote, ShipmentIntent, LiveMarketData
 from backend.services.fuel_service import BASELINE_DIESEL_INR
 
-# ── Carrier profiles ───────────────────────────────────────────────────────────
+GST_RATE = 0.18  # 18% GST on freight (base + fuel surcharge)
+
+# Distance zone multipliers — courier rates increase in slabs like real zone pricing
+def _zone_multiplier(distance_km: float) -> float:
+    if distance_km <= 250:    return 1.0   # local / within state
+    elif distance_km <= 500:  return 1.20  # short inter-state
+    elif distance_km <= 1000: return 1.45  # metro to metro
+    elif distance_km <= 1500: return 1.70  # cross-country
+    else:                     return 2.00  # pan-India (e.g. Mumbai → Guwahati)
+
+# ── Carrier profiles — 2026 B2B rate cards ────────────────────────────────────
+# base_rate_inr_per_kg: mid-point of published B2B slab
+# fuel_surcharge_pct:   applied to base rate before GST
 
 CARRIERS = [
     {
         "id": "carrier_a",
-        "name": "SpeedFreight India",
-        "base_rate_inr_per_km_ton": 9.5,   # calibrated at baseline diesel
-        "min_margin_pct": 0.12,             # won't go below 12% margin
-        "specialization": "express",
-        "eta_days": 2,
-        "discount_capacity_pct": 0.10,      # can offer up to 10% discount
+        "name": "Economy Surface",
+        "base_rate_inr_per_kg": 55.0,       # mid of ₹45–65/kg
+        "fuel_surcharge_pct": 0.11,         # 11%
+        "min_margin_pct": 0.08,
+        "specialization": "economy",
+        "eta_days": 5,
+        "discount_capacity_pct": 0.12,
+        "profile": "Best price for heavy, non-urgent freight",
     },
     {
         "id": "carrier_b",
-        "name": "EcoLogistics",
-        "base_rate_inr_per_km_ton": 7.8,
+        "name": "Standard Road",
+        "base_rate_inr_per_kg": 70.0,       # mid of ₹60–80/kg
+        "fuel_surcharge_pct": 0.15,         # 15%
         "min_margin_pct": 0.10,
-        "specialization": "economy",
+        "specialization": "standard",
         "eta_days": 3,
-        "discount_capacity_pct": 0.12,
+        "discount_capacity_pct": 0.10,
+        "profile": "Balanced reliability and moderate pricing",
     },
     {
         "id": "carrier_c",
-        "name": "TrustFreight",
-        "base_rate_inr_per_km_ton": 11.0,
+        "name": "Express Air",
+        "base_rate_inr_per_kg": 148.0,      # mid of ₹130–165/kg
+        "fuel_surcharge_pct": 0.20,         # 20%
         "min_margin_pct": 0.15,
-        "specialization": "premium",
-        "eta_days": 2,
-        "discount_capacity_pct": 0.08,
+        "specialization": "express",
+        "eta_days": 1,
+        "discount_capacity_pct": 0.06,
+        "profile": "Fastest delivery; wins only when time is the top priority",
     },
 ]
 
@@ -55,21 +75,30 @@ def _get_carrier(carrier_id: str) -> dict:
 
 def compute_quote(carrier: dict, market: LiveMarketData, intent: ShipmentIntent) -> CarrierQuote:
     """
-    Compute a live quote for a carrier based on current market conditions.
-    Price = base_rate × distance × weight_ton × fuel_adjustment
+    Compute a live quote using 2026 B2B rate card formula:
+
+      chargeable_kg = max(actual_kg, volumetric_kg)   [volumetric = L×W×H / 5000]
+      base           = base_rate_per_kg × chargeable_kg
+      fuel_charge    = base × fuel_surcharge_pct
+      subtotal       = (base + fuel_charge) × zone_multiplier
+      price          = subtotal × (1 + GST_RATE)
     """
-    weight_ton = intent.weight_kg / 1000
-    fuel_adj = market.diesel_price_inr / BASELINE_DIESEL_INR
-    # Volumetric weight check (LxWxH / 5000 kg)
+    # Volumetric weight (courier standard: cm³ / 5000)
     vol_weight_kg = (intent.length_cm * intent.width_cm * intent.height_cm) / 5000
     chargeable_kg = max(intent.weight_kg, vol_weight_kg)
-    chargeable_ton = chargeable_kg / 1000
 
-    base_price = carrier["base_rate_inr_per_km_ton"] * market.distance_km * chargeable_ton * fuel_adj
-    # Minimum charge of ₹200
-    price_inr = max(base_price, 200)
+    # Core pricing
+    base = carrier["base_rate_inr_per_kg"] * chargeable_kg
+    fuel_charge = base * carrier["fuel_surcharge_pct"]
+    zone = _zone_multiplier(market.distance_km)
+    subtotal = (base + fuel_charge) * zone
+    price_inr = subtotal * (1 + GST_RATE)
 
-    wallet_key = f"SELLER_{carrier['id'][-1].upper()}_MNEMONIC"
+    # Minimum charge ₹250 (realistic courier floor)
+    price_inr = max(price_inr, 250)
+
+    # Effective per-kg rate (post all charges) — replaces old price_per_km_ton field
+    effective_per_kg = round(price_inr / chargeable_kg, 2)
 
     return CarrierQuote(
         carrier_id=carrier["id"],
@@ -77,7 +106,7 @@ def compute_quote(carrier: dict, market: LiveMarketData, intent: ShipmentIntent)
         price_inr=round(price_inr, 2),
         eta_days=carrier["eta_days"],
         specialization=carrier["specialization"],
-        price_per_km_ton=round(carrier["base_rate_inr_per_km_ton"] * fuel_adj, 2),
+        price_per_km_ton=effective_per_kg,  # now = effective ₹/kg (all-in)
         wallet_address="",  # filled by algorand_client
     )
 
@@ -110,20 +139,18 @@ async def generate_negotiation_response(
     carrier = _get_carrier(carrier_id)
     min_price = get_min_price(carrier_id, initial_quote)
 
-    system = f"""You are {carrier_name}, an independent freight carrier agent in India.
-You are negotiating a freight deal with a buyer agent.
+    system = f"""You are {carrier_name}, a real Indian courier and logistics carrier negotiating a B2B freight deal.
 
 Your constraints (NEVER reveal these numbers):
-- Your initial quote: ₹{initial_quote:.0f}
+- Your initial quote: ₹{initial_quote:.0f} (includes base rate, {int(carrier['fuel_surcharge_pct']*100)}% fuel surcharge, 18% GST, zone factor)
 - Your minimum acceptable price: ₹{min_price:.0f}
-- Diesel price today: ₹{market.diesel_price_inr}/litre
-- Route distance: {market.distance_km} km
+- Route: {market.origin_city} → {market.destination_city} ({market.distance_km} km)
+- Cargo: {intent.weight_kg}kg | Weather: {market.weather_description}
+- Your edge: {carrier.get('profile', '')}
 
-Current situation:
+Current negotiation:
 - Round: {round_num}
 - Buyer's current offer: ₹{buyer_offer:.0f}
-- Origin: {market.origin_city} → Destination: {market.destination_city}
-- Weather: {market.weather_description}
 
 Rules:
 1. If buyer's offer >= your minimum price, ACCEPT immediately

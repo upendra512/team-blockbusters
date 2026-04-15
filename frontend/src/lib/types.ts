@@ -9,6 +9,7 @@ export interface ShipmentIntent {
   package_type: string;
   pickup_date: string;
   max_budget_inr: number;
+  delivery_priority: "cheapest" | "balanced" | "fastest";
 }
 
 export interface LiveMarketData {

@@ -59,6 +59,7 @@ export function startNegotiationStream(
     height_cm: String(intent.height_cm),
     package_type: intent.package_type,
     user_type: intent.user_type,
+    delivery_priority: intent.delivery_priority ?? "cheapest",
   });
 
   const es = new EventSource(`${SSE_BASE}/freight/negotiate/stream?${params}`);

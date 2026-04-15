@@ -29,9 +29,19 @@ async def run_negotiation(
         async for msg in run_negotiation(quotes, intent, market):
             yield msg  # stream to frontend via SSE
     """
-    # Sort quotes: cheapest first; buyer negotiates with top 2
-    sorted_quotes = sorted(quotes, key=lambda q: q.price_inr)
-    target = sorted_quotes[0]  # negotiate with cheapest carrier first
+    # Select target carrier based on buyer's delivery priority
+    sorted_by_price = sorted(quotes, key=lambda q: q.price_inr)
+    priority = getattr(intent, "delivery_priority", "cheapest")
+
+    if priority == "fastest":
+        # Pick the carrier with shortest ETA; break ties by price
+        target = min(quotes, key=lambda q: (q.eta_days, q.price_inr))
+    elif priority == "balanced":
+        # Pick the middle-price option
+        target = sorted_by_price[len(sorted_by_price) // 2]
+    else:
+        # "cheapest" (default) — lowest price
+        target = sorted_by_price[0]
 
     # ── Round 0: system intro ─────────────────────────────────────────────────
     yield NegotiationMessage(
