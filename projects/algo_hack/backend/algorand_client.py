@@ -29,7 +29,7 @@ APPROVAL_TEAL = ARTIFACTS_DIR / "CommerceEscrow.approval.teal"
 CLEAR_TEAL = ARTIFACTS_DIR / "CommerceEscrow.clear.teal"
 ARC56_JSON = ARTIFACTS_DIR / "CommerceEscrow.arc56.json"
 
-EXPLORER_BASE = "https://testnet.algoexplorer.io"
+EXPLORER_BASE = "https://lora.algokit.io/testnet"
 
 # Global state schema for CommerceEscrow
 # UInt64 fields: amount, status  → 2 ints
@@ -429,7 +429,7 @@ def get_escrow_created_at(app_id: int) -> str:
 
 
 def explorer_tx_url(tx_id: str) -> str:
-    return f"{EXPLORER_BASE}/tx/{tx_id}"
+    return f"{EXPLORER_BASE}/transaction/{tx_id}"
 
 
 def explorer_app_url(app_id: int) -> str:

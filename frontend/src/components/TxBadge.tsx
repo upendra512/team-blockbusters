@@ -9,7 +9,7 @@ interface TxBadgeProps {
 
 export default function TxBadge({ label, txId, explorerUrl, appId }: TxBadgeProps) {
   const short = txId ? `${txId.slice(0, 8)}...${txId.slice(-6)}` : "";
-  const url = explorerUrl || (txId ? `https://testnet.algoexplorer.io/tx/${txId}` : "#");
+  const url = explorerUrl || (txId ? `https://lora.algokit.io/testnet/transaction/${txId}` : "#");
 
   return (
     <div className="flex items-center gap-2 bg-algo-card border border-algo-border rounded-lg px-3 py-2 text-sm">

@@ -299,4 +299,4 @@ Open **http://localhost:3000**
 ## Team Blockbusters
 AlgoBharat Hack Series 3 · Round 2 · Focus Area 2: Agentic Commerce
 
-*All transactions verifiable on [Algorand Testnet Explorer](https://testnet.algoexplorer.io)*
+*All transactions verifiable on [Algorand Testnet Explorer](https://lora.algokit.io/testnet)*
